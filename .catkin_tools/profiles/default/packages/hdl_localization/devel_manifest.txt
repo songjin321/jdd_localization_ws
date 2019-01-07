@@ -1,0 +1,7 @@
+hdl_localization
+/home/neousys/Project/jdd_localization_ws/devel/.private/hdl_localization/lib/libjd_globalmap_server_nodelet.so /home/neousys/Project/jdd_localization_ws/devel/lib/libjd_globalmap_server_nodelet.so
+/home/neousys/Project/jdd_localization_ws/devel/.private/hdl_localization/lib/libhdl_localization_nodelet.so /home/neousys/Project/jdd_localization_ws/devel/lib/libhdl_localization_nodelet.so
+/home/neousys/Project/jdd_localization_ws/devel/.private/hdl_localization/lib/libglobalmap_server_nodelet.so /home/neousys/Project/jdd_localization_ws/devel/lib/libglobalmap_server_nodelet.so
+/home/neousys/Project/jdd_localization_ws/devel/.private/hdl_localization/lib/pkgconfig/hdl_localization.pc /home/neousys/Project/jdd_localization_ws/devel/lib/pkgconfig/hdl_localization.pc
+/home/neousys/Project/jdd_localization_ws/devel/.private/hdl_localization/share/hdl_localization/cmake/hdl_localizationConfig-version.cmake /home/neousys/Project/jdd_localization_ws/devel/share/hdl_localization/cmake/hdl_localizationConfig-version.cmake
+/home/neousys/Project/jdd_localization_ws/devel/.private/hdl_localization/share/hdl_localization/cmake/hdl_localizationConfig.cmake /home/neousys/Project/jdd_localization_ws/devel/share/hdl_localization/cmake/hdl_localizationConfig.cmake
