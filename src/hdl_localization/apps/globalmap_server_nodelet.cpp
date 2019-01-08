@@ -53,10 +53,6 @@ private:
     pcl::io::loadPCDFile(globalmap_pcd, *globalmap);
     pcl::toROSMsg(*globalmap, globalmap_ros);
     globalmap_ros.header.frame_id = "map";   
-
-    //std::vector<int> target_indices;                                            //保存去除的点的索引
-    //pcl::removeNaNFromPointCloud(*globalmap, *globalmap, target_indices); //去除点云中的NaN点
-    //pcl::removeNaNFromPointCloud(*globalmap_jdd, *globalmap_jdd, target_indices); //去除点云中的NaN点
   }
 
 private:

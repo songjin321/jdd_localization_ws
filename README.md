@@ -9,13 +9,9 @@ catkin build
 
 ## Run
 ```
-rosparam set use_sim_time true
 roslaunch hdl_localization hdl_localization.launch
-
-roscd hdl_localizatrion/rviz
-rviz -d hdl_localizatrion.rviz
-
-rosbag play --clock semifinal.bag -r 0.5
+## wait about 10 s
+roslaunch cartographer_ros my_robot_odom.launch bag_filename:=/home/neousys/Data/jdd/test2.bag
 ```
 
 ## Result
@@ -25,9 +21,20 @@ rosbag play --clock semifinal.bag -r 0.5
 
 The algorithm takes about 400ms in our dual-core i5 NUC for once lidar localization.
 
-## Remark
+## The description of each package
+
+### hdl_localization
+inputs: 
+- point cloud map with transform map -> utm
+- lidar data
+- robot model static tf
+- A small piece of GPS signal at the initial moment give gps->
+lidar odometry
+
+outputs: output -> map and result.csv with output -> utm
 
 ### The Processor package contains programs and scripts for data processing.
+- output.py convert lidar->map to output_link -> utm
 - extract_jd_part: extract a 30m square map from jd cloud map
 - extract_jd_part: extract a 20m square map from jd cloud map  
 - icp_example: use icp algorithm in pcl library to registration two submaps

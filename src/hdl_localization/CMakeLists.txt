@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   sensor_msgs
   ndt_omp
+  tf2
 )
 
 find_package(PCL 1.7 REQUIRED)
@@ -64,9 +65,4 @@ target_link_libraries(globalmap_server_nodelet
   ${PCL_LIBRARIES}
 )
 
-add_library(jd_globalmap_server_nodelet apps/jd_globalmap_server_nodelet.cpp)
-target_link_libraries(jd_globalmap_server_nodelet
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-)
 
