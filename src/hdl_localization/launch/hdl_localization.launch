@@ -8,7 +8,7 @@
   
     <!-- globalmap_server_nodelet -->
     <node pkg="nodelet" type="nodelet" name="globalmap_server_nodelet" args="load hdl_localization/GlobalmapServerNodelet $(arg nodelet_manager)">
-      <param name="globalmap_pcd" value="$(find hdl_localization)/data/map.pcd" />
+      <param name="globalmap_pcd" value="$(find hdl_localization)/data/test1_map.pcd" />
     </node>
 
     <!-- hdl_localization_nodelet -->

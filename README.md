@@ -42,3 +42,13 @@ outputs: output -> map and result.csv with output -> utm
 - separate_ground: separate object and ground from a map
 - show: show two map in same frame
 - voxel_grid: downsampling the point cloud with the given precision
+
+# map_localization
+This package use a exist point cloud map to publish a fixed frame pose. cartographer will use this pose to improve the perfomance of Sparse Pose Adjustment. In order to simple the modification, we directly use the original GPS interface. Our node will publish a /fix_map_localization topic using NavSatFix message.
+The correspondence between these two messages:
+- latitude <-> x
+- longitude <-> y
+- altitude <-> z
+- position_covariance[0] <-> roll(radian)
+- position_covariance[1] <-> pitch(radian)
+- position_covariance[2] <-> yaw(radian)

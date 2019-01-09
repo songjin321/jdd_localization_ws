@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- arguments -->
+  <arg name="nodelet_manager" default="velodyne_nodelet_manager" />
+
+  <!-- in case you use velodyne_driver, comment out the following line -->
+  <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen"/>
+  
+    <!-- globalmap_server_nodelet -->
+    <node pkg="nodelet" type="nodelet" name="globalmap_server_nodelet" args="load hdl_localization/GlobalmapServerNodelet $(arg nodelet_manager)">
+      <param name="globalmap_pcd" value="$(find hdl_localization)/data/jd_map.pcd" />
+    </node>
+
+    <!-- hdl_localization_nodelet -->
+    <node pkg="nodelet" type="nodelet" name="hdl_localization_nodelet" args="load hdl_localization/HdlLocalizationNodelet $(arg nodelet_manager)">
+        <remap from="/velodyne_points" to="/lidar_points"/>
+        <!-- ndt settings -->
+        <!-- if NDT is slow for your PC, try DIRECT1 serach method, which is a bit unstable but extremely fast -->
+        <param name="ndt_neighbor_search_method" value="DIRECT7" />
+        <param name="ndt_resolution" value="2.0" />
+        <!-- The origin of the loaded map  in the utm frame -->
+        <param name="map_x" value="457246.0" />
+        <param name="map_y" value="4404758.0" />
+        <param name="map_z" value="0" />
+        <param name="map_theta" value="0.0" />
+        <!-- write output->utm to file-->
+        <param name="resultfile_path" value="/home/neousys/Documents/result.txt" />
+    </node>
+</launch>

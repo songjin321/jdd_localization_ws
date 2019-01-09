@@ -55,6 +55,7 @@ public:
 
     localization_pub = nh.advertise<nav_msgs::Odometry>("/lidar_localization", 5, false);
     aligned_pub = nh.advertise<sensor_msgs::PointCloud2>("/aligned_points", 5, false);
+    fix_map_localization_pub = nh.advertise<sensor_msgs::NavSatFix>("/fix_map_localization", 5, false);
 
     initialize_params();  
   }
@@ -120,6 +121,7 @@ private:
     Eigen::Translation3f translation_utm_map(map_x, map_y, map_z);
     trans_utm_map = (translation_utm_map * rotation_utm_map).matrix(); 
     NODELET_INFO("trans_utm_map init OK!!!");
+    init_trans_utm_map = true;
 
     ros::Rate rate(20.0);
     std::ofstream result_file;
@@ -130,6 +132,7 @@ private:
       std::cout << "can not open result txt" << std::endl;
     }
     while (nh.ok()){
+      if (!init_trans_map_lidar)  continue;
       try{
         transformStamped = tfBuffer.lookupTransform("odom", "rslidar", ros::Time(0), ros::Duration(1.0));
       }
@@ -175,7 +178,7 @@ private:
       return;
     }
 
-    if(!initGPSOK) {
+    if(!init_trans_map_lidar) {
       NODELET_ERROR("Not enough initial GPS data has been received!!");
       return;
     }   
@@ -204,6 +207,7 @@ private:
             << " map_lidar score: " << registration->getFitnessScore() << std::endl;
 
     trans_map_lidar = registration->getFinalTransformation();
+    publish_fix_map_localization(stamp, trans_map_lidar);
     trans_map_odom = trans_map_lidar * trans_odom_lidar.inverse();
     
     std::cout << "trans_map_odom translation = \n" << trans_map_odom.block<3, 1>(0, 3) << std::endl;
@@ -235,11 +239,11 @@ private:
   }
 
   /**
-   * @brief callback for fix input
+   * @brief callback for fix input, using initial gps to init trans_map_lidar
    * @param fix_msg
    */
   void fix_callback(const sensor_msgs::NavSatFix& fix_msg) {
-    if (initGPSOK)
+    if (init_trans_map_lidar || !init_trans_utm_map)
       return;
     double gps_x;
     double gps_y;
@@ -253,7 +257,12 @@ private:
     Eigen::Translation3f translation_utm_gps(gps_x, gps_y, gps_z);
     Eigen::Matrix4f trans_utm_gps = (translation_utm_gps * rotation_utm_gps).matrix(); 
     trans_map_lidar = trans_utm_map.inverse() * trans_utm_gps * trans_gps_lidar;
-    initGPSOK = true;
+    trans_map_odom = trans_map_lidar;
+    init_trans_map_lidar = true;
+
+    std::cout << "initial trans_map_lidar translation = \n" << trans_map_lidar.block<3, 1>(0, 3) << std::endl;
+    std::cout << "initial trans_map_lidar euler = \n" << trans_map_lidar.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
+
     NODELET_INFO("GPS init OK!!!");
   }
 
@@ -282,6 +291,28 @@ private:
     odom.twist.twist.angular.z = 0.0;
 
     localization_pub.publish(odom);
+  }
+
+  /**
+   * @brief publish fix_map_localization
+   * @param stamp  timestamp
+   * @param pose   lidar localization pose to be published
+   */
+  void publish_fix_map_localization(const ros::Time& stamp, const Eigen::Matrix4f& pose) {
+
+    // publish the transform
+    sensor_msgs::NavSatFix fix_map_localization;
+    fix_map_localization.header.stamp = stamp;
+    fix_map_localization.header.frame_id = "rslidar";
+    fix_map_localization.status.status = sensor_msgs::NavSatStatus::STATUS_GBAS_FIX;
+
+    fix_map_localization.latitude = pose.block<3, 1>(0, 3)[0];
+    fix_map_localization.longitude = pose.block<3, 1>(0, 3)[1];
+    fix_map_localization.altitude = pose.block<3, 1>(0, 3)[2];
+    fix_map_localization.position_covariance[0] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[0];
+    fix_map_localization.position_covariance[0] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[1];
+    fix_map_localization.position_covariance[0] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[2];
+    fix_map_localization_pub.publish(fix_map_localization);
   }
 
   /**
@@ -326,7 +357,7 @@ private:
 
   ros::Publisher localization_pub;
   ros::Publisher aligned_pub;
-
+  ros::Publisher fix_map_localization_pub;
   // globalmap and registration method
   pcl::PointCloud<PointT>::Ptr globalmap;
   pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr registration;
@@ -343,7 +374,8 @@ private:
   Eigen::Matrix4f trans_utm_map = Eigen::Matrix4f::Identity(4,4);
   Eigen::Matrix4f trans_gps_lidar = Eigen::Matrix4f::Identity(4,4);
   int lidar_count = 0;
-  bool initGPSOK = false;
+  bool init_trans_map_lidar = false;
+  bool init_trans_utm_map = false;
 };
 
 }
