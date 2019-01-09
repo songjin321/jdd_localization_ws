@@ -16,7 +16,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/NavSatFix.h>
 #include <geometry_msgs/TransformStamped.h>
-
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
 
@@ -52,6 +52,7 @@ public:
     points_sub = mt_nh.subscribe("/velodyne_points", 5, &HdlLocalizationNodelet::points_callback, this);
     globalmap_sub = nh.subscribe("/globalmap", 1, &HdlLocalizationNodelet::globalmap_callback, this);
     fix_sub = nh.subscribe("/fix", 1, &HdlLocalizationNodelet::fix_callback, this);
+    is_match_vaild_sub = nh.subscribe("/initialpose", 1, &HdlLocalizationNodelet::is_match_vaild_callback, this);
 
     localization_pub = nh.advertise<nav_msgs::Odometry>("/lidar_localization", 5, false);
     aligned_pub = nh.advertise<sensor_msgs::PointCloud2>("/aligned_points", 5, false);
@@ -132,9 +133,9 @@ private:
       std::cout << "can not open result txt" << std::endl;
     }
     while (nh.ok()){
-      if (!init_trans_map_lidar)  continue;
+      if (!init_trans_map_lidar)  continue;  
       try{
-        transformStamped = tfBuffer.lookupTransform("odom", "rslidar", ros::Time(0), ros::Duration(1.0));
+        transformStamped = tfBuffer.lookupTransform("map", "rslidar", ros::Time(0), ros::Duration(1.0));
       }
       catch (tf::TransformException ex){
         ROS_ERROR("%s",ex.what());
@@ -179,7 +180,7 @@ private:
     }
 
     if(!init_trans_map_lidar) {
-      NODELET_ERROR("Not enough initial GPS data has been received!!");
+      NODELET_ERROR("need GPS data to init trans_map_lidar!!");
       return;
     }   
     if(lidar_count++%5!=0)
@@ -199,25 +200,23 @@ private:
 
     // relocalization
     auto t1 = ros::WallTime::now();
-
     pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
     registration->setInputSource(cloud);
     registration->align(*aligned, trans_map_lidar);
     std::cout << "map_lidar Normal Distributions Transform has converged:" << registration->hasConverged()
             << " map_lidar score: " << registration->getFitnessScore() << std::endl;
-
-    trans_map_lidar = registration->getFinalTransformation();
-    publish_fix_map_localization(stamp, trans_map_lidar);
-    trans_map_odom = trans_map_lidar * trans_odom_lidar.inverse();
-    
-    std::cout << "trans_map_odom translation = \n" << trans_map_odom.block<3, 1>(0, 3) << std::endl;
-    std::cout << " trans_map_odom euler = \n" << trans_map_odom.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
-
     auto t2 = ros::WallTime::now();
     processing_time.push_back((t2 - t1).toSec());
     double avg_processing_time = std::accumulate(processing_time.begin(), processing_time.end(), 0.0) / processing_time.size();
     NODELET_INFO_STREAM("processing_time: " << avg_processing_time * 1000.0 << "[msec]");
-
+    if (is_match_vaild)
+    {
+      trans_map_lidar = registration->getFinalTransformation();
+      trans_map_odom = trans_map_lidar * trans_odom_lidar.inverse();
+      std::cout << "trans_map_odom translation = \n" << trans_map_odom.block<3, 1>(0, 3) << std::endl;
+      std::cout << " trans_map_odom euler = \n" << trans_map_odom.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
+    }
+    publish_fix_map_localization(stamp, trans_map_lidar);
     if(aligned_pub.getNumSubscribers()) {
       aligned->header.frame_id = "map";
       aligned->header.stamp = cloud->header.stamp;
@@ -245,6 +244,11 @@ private:
   void fix_callback(const sensor_msgs::NavSatFix& fix_msg) {
     if (init_trans_map_lidar || !init_trans_utm_map)
       return;
+    if (fix_msg.status.status != 4)
+    {
+      NODELET_ERROR("GPS signal is not good, can not init trans_map_lidar!!!");
+      return;
+    }
     double gps_x;
     double gps_y;
     double gps_z;
@@ -263,7 +267,7 @@ private:
     std::cout << "initial trans_map_lidar translation = \n" << trans_map_lidar.block<3, 1>(0, 3) << std::endl;
     std::cout << "initial trans_map_lidar euler = \n" << trans_map_lidar.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
 
-    NODELET_INFO("GPS init OK!!!");
+    NODELET_INFO("GPS init trans_map_lidar OK!!!");
   }
 
   /**
@@ -304,17 +308,38 @@ private:
     sensor_msgs::NavSatFix fix_map_localization;
     fix_map_localization.header.stamp = stamp;
     fix_map_localization.header.frame_id = "rslidar";
-    fix_map_localization.status.status = sensor_msgs::NavSatStatus::STATUS_GBAS_FIX;
-
+    if (is_match_vaild)
+    {
+      fix_map_localization.status.status = sensor_msgs::NavSatStatus::STATUS_GBAS_FIX;
+    }else {
+      fix_map_localization.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
+    }
     fix_map_localization.latitude = pose.block<3, 1>(0, 3)[0];
     fix_map_localization.longitude = pose.block<3, 1>(0, 3)[1];
     fix_map_localization.altitude = pose.block<3, 1>(0, 3)[2];
     fix_map_localization.position_covariance[0] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[0];
-    fix_map_localization.position_covariance[0] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[1];
-    fix_map_localization.position_covariance[0] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[2];
+    fix_map_localization.position_covariance[1] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[1];
+    fix_map_localization.position_covariance[2] = pose.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[2];
     fix_map_localization_pub.publish(fix_map_localization);
   }
+  /**
+   * @brief subscribe rivz topic "/initialpose" to change match_vaild state
+   */
+  void is_match_vaild_callback(const geometry_msgs::PoseWithCovarianceStamped& msg){
+      // use rviz  to set is_match_vaild
+      if (is_match_vaild == true)
+      {
+        is_match_vaild = false;
+        std::cout << " set is_match_vaild to false" << std::endl;
+      }else if(is_match_vaild == false)
+      {
+        is_match_vaild = true;
+        std::cout << " set is_match_vaild to true" << std::endl;    
 
+        // use gps to reinitialize   
+        // init_trans_map_lidar = false;   
+      }
+  }
   /**
    * @brief convert a Eigen::Matrix to TransformedStamped
    * @param stamp           timestamp
@@ -354,6 +379,7 @@ private:
   ros::Subscriber points_sub;
   ros::Subscriber globalmap_sub;
   ros::Subscriber fix_sub;
+  ros::Subscriber is_match_vaild_sub;
 
   ros::Publisher localization_pub;
   ros::Publisher aligned_pub;
@@ -365,7 +391,6 @@ private:
   // processing time buffer
   boost::circular_buffer<double> processing_time;
 
-
   Eigen::Matrix4f trans_map_lidar = Eigen::Matrix4f::Identity(4,4);
   Eigen::Matrix4f trans_odom_lidar = Eigen::Matrix4f::Identity(4,4);
   Eigen::Matrix4f trans_map_odom = Eigen::Matrix4f::Identity(4,4);
@@ -376,6 +401,7 @@ private:
   int lidar_count = 0;
   bool init_trans_map_lidar = false;
   bool init_trans_utm_map = false;
+  bool is_match_vaild = true;
 };
 
 }
