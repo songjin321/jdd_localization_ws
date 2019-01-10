@@ -135,7 +135,7 @@ private:
     while (nh.ok()){
       if (!init_trans_map_lidar)  continue;  
       try{
-        transformStamped = tfBuffer.lookupTransform("odom", "rslidar", ros::Time(0), ros::Duration(1.0));
+        transformStamped = tfBuffer.lookupTransform("map", "rslidar", ros::Time(0), ros::Duration(1.0));
       }
       catch (tf::TransformException ex){
         ROS_ERROR("%s",ex.what());
