@@ -135,6 +135,7 @@ private:
     while (nh.ok()){
       if (!init_trans_map_lidar)  continue;  
       try{
+        // use rslidar->map but not rslidar->odom for more precise result
         transformStamped = tfBuffer.lookupTransform("map", "rslidar", ros::Time(0), ros::Duration(1.0));
       }
       catch (tf::TransformException ex){
@@ -398,6 +399,7 @@ private:
   Eigen::Matrix4d trans_utm_output = Eigen::Matrix4d::Identity(4,4);
   Eigen::Matrix4d trans_utm_map = Eigen::Matrix4d::Identity(4,4);
   Eigen::Matrix4d trans_gps_lidar = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_output_base = Eigen::Matrix4d::Identity(4,4);
   int lidar_count = 0;
   bool init_trans_map_lidar = false;
   bool init_trans_utm_map = false;

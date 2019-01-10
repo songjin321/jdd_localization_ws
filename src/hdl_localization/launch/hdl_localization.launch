@@ -19,10 +19,10 @@
         <param name="ndt_neighbor_search_method" value="DIRECT7" />
         <param name="ndt_resolution" value="2.0" />
         <!-- The origin of the loaded map  in the utm frame -->
-        <param name="map_x" value="457074.86384865496" />
-        <param name="map_y" value="4404764.139741208" />
-        <param name="map_z" value="22.1599998474" />
-        <param name="map_theta" value="-148.2100067138672" />
+        <param name="map_x" value="457074.976928" />
+        <param name="map_y" value="4404763.25036" />
+        <param name="map_z" value="21.9565" />
+        <param name="map_theta" value="-146.7851804" />
         <!-- write output->utm to file-->
         <param name="resultfile_path" value="/home/neousys/Documents/result.txt" />
     </node>
