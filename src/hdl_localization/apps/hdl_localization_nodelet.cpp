@@ -101,7 +101,7 @@ private:
       ros::Duration(1.0).sleep();
     }
     transform_eigen = tf2::transformToEigen(transformStamped);
-    trans_lidar_output = transform_eigen.matrix().cast<float>();
+    trans_lidar_output = transform_eigen.matrix();
 
     try{
       transformStamped = tfBuffer.lookupTransform("gps_link", "rslidar", ros::Time(0), ros::Duration(1.0));
@@ -111,15 +111,15 @@ private:
       ros::Duration(1.0).sleep();
     }
     transform_eigen = tf2::transformToEigen(transformStamped);
-    trans_gps_lidar = transform_eigen.matrix().cast<float>();
+    trans_gps_lidar = transform_eigen.matrix();
 
     // trans_utm_map from parameters
     double map_x = private_nh.param<double>("map_x", 0.0);
     double map_y = private_nh.param<double>("map_y", 0.0);
     double map_z = private_nh.param<double>("map_z", 0.0);
     double map_theta = private_nh.param<double>("map_theta", 0.0);
-    Eigen::AngleAxisf rotation_utm_map(DegToRad(map_theta), Eigen::Vector3f::UnitZ());
-    Eigen::Translation3f translation_utm_map(map_x, map_y, map_z);
+    Eigen::AngleAxisd rotation_utm_map(DegToRad(map_theta), Eigen::Vector3d::UnitZ());
+    Eigen::Translation3d translation_utm_map(map_x, map_y, map_z);
     trans_utm_map = (translation_utm_map * rotation_utm_map).matrix(); 
     NODELET_INFO("trans_utm_map init OK!!!");
     init_trans_utm_map = true;
@@ -135,14 +135,14 @@ private:
     while (nh.ok()){
       if (!init_trans_map_lidar)  continue;  
       try{
-        transformStamped = tfBuffer.lookupTransform("map", "rslidar", ros::Time(0), ros::Duration(1.0));
+        transformStamped = tfBuffer.lookupTransform("odom", "rslidar", ros::Time(0), ros::Duration(1.0));
       }
       catch (tf::TransformException ex){
         ROS_ERROR("%s",ex.what());
         ros::Duration(1.0).sleep();
       }
       transform_eigen = tf2::transformToEigen(transformStamped);
-      trans_odom_lidar = transform_eigen.matrix().cast<float>();
+      trans_odom_lidar = transform_eigen.matrix();
       trans_map_lidar = trans_map_odom * trans_odom_lidar; 
       trans_utm_output = trans_utm_map * trans_map_lidar * trans_lidar_output;
       
@@ -202,7 +202,7 @@ private:
     auto t1 = ros::WallTime::now();
     pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
     registration->setInputSource(cloud);
-    registration->align(*aligned, trans_map_lidar);
+    registration->align(*aligned, trans_map_lidar.cast<float>());
     std::cout << "map_lidar Normal Distributions Transform has converged:" << registration->hasConverged()
             << " map_lidar score: " << registration->getFitnessScore() << std::endl;
     auto t2 = ros::WallTime::now();
@@ -211,7 +211,7 @@ private:
     NODELET_INFO_STREAM("processing_time: " << avg_processing_time * 1000.0 << "[msec]");
     if (is_match_vaild)
     {
-      trans_map_lidar = registration->getFinalTransformation();
+      trans_map_lidar = registration->getFinalTransformation().cast<double>();
       trans_map_odom = trans_map_lidar * trans_odom_lidar.inverse();
       std::cout << "trans_map_odom translation = \n" << trans_map_odom.block<3, 1>(0, 3) << std::endl;
       std::cout << " trans_map_odom euler = \n" << trans_map_odom.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
@@ -257,15 +257,15 @@ private:
     std::cout << "gps_x = " << gps_x << " gps_y = " << gps_y << std::endl;
     gps_theta = DegToRad(fix_msg.position_covariance[0]);
     gps_z = fix_msg.altitude;
-    Eigen::AngleAxisf rotation_utm_gps(gps_theta, Eigen::Vector3f::UnitZ());
-    Eigen::Translation3f translation_utm_gps(gps_x, gps_y, gps_z);
-    Eigen::Matrix4f trans_utm_gps = (translation_utm_gps * rotation_utm_gps).matrix(); 
+    Eigen::AngleAxisd rotation_utm_gps(gps_theta, Eigen::Vector3d::UnitZ());
+    Eigen::Translation3d translation_utm_gps(gps_x, gps_y, gps_z);
+    Eigen::Matrix4d trans_utm_gps = (translation_utm_gps * rotation_utm_gps).matrix(); 
     trans_map_lidar = trans_utm_map.inverse() * trans_utm_gps * trans_gps_lidar;
     trans_map_odom = trans_map_lidar;
     init_trans_map_lidar = true;
-
-    std::cout << "initial trans_map_lidar translation = \n" << trans_map_lidar.block<3, 1>(0, 3) << std::endl;
-    std::cout << "initial trans_map_lidar euler = \n" << trans_map_lidar.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
+    trans_utm_output = trans_utm_map * trans_map_lidar * trans_lidar_output;
+    std::cout << std::setprecision(12) << "initial trans_utm_output translation = \n" << trans_utm_output.block<3, 1>(0, 3) << std::endl 
+    << "initial trans_utm_output euler = \n" << trans_utm_output.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
 
     NODELET_INFO("GPS init trans_map_lidar OK!!!");
   }
@@ -275,7 +275,7 @@ private:
    * @param stamp  timestamp
    * @param pose   lidar localization pose to be published
    */
-  void publish_localization_pose(const ros::Time& stamp, const Eigen::Matrix4f& pose) {
+  void publish_localization_pose(const ros::Time& stamp, const Eigen::Matrix4d& pose) {
     // broadcast the transform over tf
     geometry_msgs::TransformStamped odom_trans = matrix2transform(stamp, pose, "map", "output");
 
@@ -302,7 +302,7 @@ private:
    * @param stamp  timestamp
    * @param pose   lidar localization pose to be published
    */
-  void publish_fix_map_localization(const ros::Time& stamp, const Eigen::Matrix4f& pose) {
+  void publish_fix_map_localization(const ros::Time& stamp, const Eigen::Matrix4d& pose) {
 
     // publish the transform
     sensor_msgs::NavSatFix fix_map_localization;
@@ -348,8 +348,8 @@ private:
    * @param child_frame_id  child_frame_id
    * @return transform
    */
-  geometry_msgs::TransformStamped matrix2transform(const ros::Time& stamp, const Eigen::Matrix4f& pose, const std::string& frame_id, const std::string& child_frame_id) {
-    Eigen::Quaternionf quat(pose.block<3, 3>(0, 0));
+  geometry_msgs::TransformStamped matrix2transform(const ros::Time& stamp, const Eigen::Matrix4d& pose, const std::string& frame_id, const std::string& child_frame_id) {
+    Eigen::Quaterniond quat(pose.block<3, 3>(0, 0));
     quat.normalize();
     geometry_msgs::Quaternion odom_quat;
     odom_quat.w = quat.w();
@@ -391,13 +391,13 @@ private:
   // processing time buffer
   boost::circular_buffer<double> processing_time;
 
-  Eigen::Matrix4f trans_map_lidar = Eigen::Matrix4f::Identity(4,4);
-  Eigen::Matrix4f trans_odom_lidar = Eigen::Matrix4f::Identity(4,4);
-  Eigen::Matrix4f trans_map_odom = Eigen::Matrix4f::Identity(4,4);
-  Eigen::Matrix4f trans_lidar_output = Eigen::Matrix4f::Identity(4,4);
-  Eigen::Matrix4f trans_utm_output = Eigen::Matrix4f::Identity(4,4);
-  Eigen::Matrix4f trans_utm_map = Eigen::Matrix4f::Identity(4,4);
-  Eigen::Matrix4f trans_gps_lidar = Eigen::Matrix4f::Identity(4,4);
+  Eigen::Matrix4d trans_map_lidar = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_odom_lidar = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_map_odom = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_lidar_output = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_utm_output = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_utm_map = Eigen::Matrix4d::Identity(4,4);
+  Eigen::Matrix4d trans_gps_lidar = Eigen::Matrix4d::Identity(4,4);
   int lidar_count = 0;
   bool init_trans_map_lidar = false;
   bool init_trans_utm_map = false;
