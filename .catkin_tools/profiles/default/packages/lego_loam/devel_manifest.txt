@@ -1,8 +1,0 @@
-LeGO-LOAM/LeGO-LOAM
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/lib/lego_loam/imageProjection /home/neousys/Project/jdd_localization_ws/devel/lib/lego_loam/imageProjection
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/lib/lego_loam/featureAssociation /home/neousys/Project/jdd_localization_ws/devel/lib/lego_loam/featureAssociation
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/lib/lego_loam/transformFusion /home/neousys/Project/jdd_localization_ws/devel/lib/lego_loam/transformFusion
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/lib/lego_loam/mapOptmization /home/neousys/Project/jdd_localization_ws/devel/lib/lego_loam/mapOptmization
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/lib/pkgconfig/lego_loam.pc /home/neousys/Project/jdd_localization_ws/devel/lib/pkgconfig/lego_loam.pc
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/share/lego_loam/cmake/lego_loamConfig.cmake /home/neousys/Project/jdd_localization_ws/devel/share/lego_loam/cmake/lego_loamConfig.cmake
-/home/neousys/Project/jdd_localization_ws/devel/.private/lego_loam/share/lego_loam/cmake/lego_loamConfig-version.cmake /home/neousys/Project/jdd_localization_ws/devel/share/lego_loam/cmake/lego_loamConfig-version.cmake

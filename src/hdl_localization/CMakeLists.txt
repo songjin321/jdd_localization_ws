@@ -17,6 +17,9 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   ndt_omp
   tf2
+  ceres_catkin
+  glog_catkin
+  gflags_catkin
 )
 
 find_package(PCL 1.7 REQUIRED)
@@ -52,11 +55,16 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+add_library(robust_pcl
+  apps/robust_pcl_registration/point_cloud_registration.cc
+  apps/robust_pcl_registration/pda.cc)
+
 # nodelets
 add_library(hdl_localization_nodelet apps/hdl_localization_nodelet.cpp apps/UTM.cpp)
 target_link_libraries(hdl_localization_nodelet
   ${catkin_LIBRARIES}
   ${PCL_LIBRARIES}
+  robust_pcl
 )
 
 add_library(globalmap_server_nodelet apps/globalmap_server_nodelet.cpp)

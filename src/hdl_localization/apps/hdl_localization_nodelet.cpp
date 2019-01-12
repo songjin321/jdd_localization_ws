@@ -35,6 +35,45 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/PointIndices.h>
+
+// IPAD
+#include <gflags/gflags.h>
+#include <glog/logging.h>
+#include <pcl/common/common_headers.h>
+#include <pcl/console/parse.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/point_cloud.h>
+#include <ros/ros.h>
+
+#include "robust_pcl_registration/pda.h"
+
+void parseIpdaParameters(IpdaParameters* params) {
+  params->save_aligned_cloud = false;
+  params->solver_minimizer_progress_to_stdout = false;
+  params->solver_use_nonmonotonic_steps = true;
+  params->use_gaussian = true;
+  params->visualize_clouds = false;
+  params->dof = 3.0;
+  params->point_size_aligned_source = 3.0;
+  params->point_size_source = 3.0;
+  params->point_size_target = 3.0;
+  params->radius = 10.0;
+  params->solver_function_tolerance = 1.0e-16;
+  params->source_filter_size = 5.0;
+  params->target_filter_size = 0.0;
+  params->transformation_epsilon = 1.0e-2; // 1e-3
+  params->dimension = 3;
+  params->maximum_iterations = 100;
+  params->max_neighbours = 50;
+  params->solver_maximum_iterations = 100;
+  params->solver_num_threads = 12;
+  params->aligned_cloud_filename = "";
+  params->frame_id = "";
+  params->source_cloud_filename = "";
+  params->target_cloud_filename = "";
+}
+
 namespace hdl_localization {
 
 class HdlLocalizationNodelet : public nodelet::Nodelet {
@@ -48,6 +87,8 @@ public:
 
 
   void onInit() override {
+    // Load the IPDA parameters.
+    parseIpdaParameters(&ipda_params);
     nh = getNodeHandle();
     mt_nh = getMTNodeHandle();
     private_nh = getPrivateNodeHandle();
@@ -141,8 +182,8 @@ private:
       NODELET_ERROR("need GPS data to init trans_map_lidar!!");
       return;
     }   
-    // if(lidar_count++%2!=0)
-    //   return;
+    if(lidar_count++%10!=0)
+       return;
 
     const auto& stamp = points_msg->header.stamp;
     pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
@@ -177,17 +218,22 @@ private:
     extract.setNegative(true);
     extract.filter(*cloud);
 
+    /*
     registration->setInputSource(cloud);
     registration->align(*aligned, trans_map_lidar.cast<float>());
     std::cout << "map_lidar Normal Distributions Transform has converged:" << registration->hasConverged()
             << " map_lidar score: " << registration->getFitnessScore() << std::endl;
+    */
+    // Run IPDA.
+    Ipda ipda(ipda_params);
+    trans_map_lidar = ipda.evaluate(cloud, globalmap, aligned, trans_map_lidar).matrix();
     auto t2 = ros::WallTime::now();
     processing_time.push_back((t2 - t1).toSec());
     double avg_processing_time = std::accumulate(processing_time.begin(), processing_time.end(), 0.0) / processing_time.size();
     NODELET_INFO_STREAM("processing_time: " << avg_processing_time * 1000.0 << "[msec]");
     if (is_match_vaild)
     {
-      trans_map_lidar = registration->getFinalTransformation().cast<double>();
+      // trans_map_lidar = registration->getFinalTransformation().cast<double>();
       // publish trans_map_lidar
       geometry_msgs::PoseWithCovarianceStamped lidar_pure_pose;
       lidar_pure_pose.header.stamp = stamp;
@@ -446,7 +492,7 @@ private:
 
   // processing time buffer
   boost::circular_buffer<double> processing_time;
-
+  IpdaParameters ipda_params;
   Eigen::Matrix4d trans_map_lidar = Eigen::Matrix4d::Identity(4,4);
   Eigen::Matrix4d trans_odom_lidar = Eigen::Matrix4d::Identity(4,4);
   Eigen::Matrix4d trans_map_odom = Eigen::Matrix4d::Identity(4,4);
