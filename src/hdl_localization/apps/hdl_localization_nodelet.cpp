@@ -19,7 +19,7 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
-
+#include <nav_msgs/Odometry.h>
 #include <pcl/filters/voxel_grid.h>
 
 #include <pclomp/ndt_omp.h>
@@ -53,6 +53,7 @@ public:
     globalmap_sub = nh.subscribe("/globalmap", 1, &HdlLocalizationNodelet::globalmap_callback, this);
     fix_sub = nh.subscribe("/fix", 1, &HdlLocalizationNodelet::fix_callback, this);
     is_match_vaild_sub = nh.subscribe("/initialpose", 1, &HdlLocalizationNodelet::is_match_vaild_callback, this);
+    odom_ekf_sub = nh.subscribe("/odometry/filtered", 1, &HdlLocalizationNodelet::odom_ekf_callback, this);
 
     localization_pub = nh.advertise<nav_msgs::Odometry>("/lidar_localization", 5, false);
     pure_lidar_localization_pub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("/pure_lidar_localization", 5, false);
@@ -115,11 +116,6 @@ private:
     trans_gps_lidar = transform_eigen.matrix();
 
     // trans_utm_map from parameters
-    // trans_base_output
-    Eigen::AngleAxisd rotation_base_output(0.0, Eigen::Vector3d::UnitZ());
-    Eigen::Translation3d translation_base_output(-0.825123, 0.000, -0.942);
-    Eigen::Matrix4d trans_base_output = (translation_base_output * rotation_base_output).matrix();
-
     double map_x = private_nh.param<double>("map_x", 0.0);
     double map_y = private_nh.param<double>("map_y", 0.0);
     double map_z = private_nh.param<double>("map_z", 0.0);
@@ -131,7 +127,6 @@ private:
     init_trans_utm_map = true;
 
     ros::Rate rate(20.0);
-    std::ofstream result_file;
     std::string resultfile_path = private_nh.param<std::string>("resultfile_path", "/home/neousys/Data/jdd/result.txt");
     result_file.open(resultfile_path);
     if (!result_file)
@@ -151,35 +146,13 @@ private:
       transform_eigen = tf2::transformToEigen(transformStamped);
       trans_odom_lidar = transform_eigen.matrix();
       trans_map_lidar = trans_map_odom * trans_odom_lidar; 
-      trans_utm_output = trans_utm_map * trans_base_output.inverse() * trans_map_lidar * trans_lidar_output;
-      
+
       // publish output -> map 
       publish_localization_pose(transformStamped.header.stamp, trans_map_lidar, "map", "rslidar");
       // publish lidar->odom
       // publish_localization_pose(transformStamped.header.stamp, trans_odom_lidar, "odom", "rslidar");
 
       // plot to rviz
-
-      // write trans_utm_output to result file, use tum file format
-    
-      Eigen::Quaterniond quat_utm_output(trans_utm_output.block<3, 3>(0, 0));
-      result_file << std::setprecision(16)
-            << transformStamped.header.stamp.sec+transformStamped.header.stamp.nsec*1e-9
-            << " "
-            << trans_utm_output.block<3, 1>(0, 3)[0]
-            << " "
-            << trans_utm_output.block<3, 1>(0, 3)[1]
-            << " "
-            << trans_utm_output.block<3, 1>(0, 3)[2]
-            << " "
-            << quat_utm_output.x()
-            << " "
-            << quat_utm_output.y()
-            << " "
-            << quat_utm_output.z()
-            << " "
-            << quat_utm_output.w()
-            << std::endl;
 
       ros::spinOnce();
       rate.sleep();
@@ -373,6 +346,49 @@ private:
         // init_trans_map_lidar = false;   
       }
   }
+
+  void odom_ekf_callback(const nav_msgs::Odometry& odom_ekf)
+  {
+      // from ekf odometry lidar->map construct matrix 
+      Eigen::Quaterniond rotation_map_lidar_ekf(
+        odom_ekf.pose.pose.orientation.w,
+        odom_ekf.pose.pose.orientation.x,
+        odom_ekf.pose.pose.orientation.y,
+        odom_ekf.pose.pose.orientation.z
+      );
+
+      Eigen::Translation3d translation_map_lidar_ekf(
+                  odom_ekf.pose.pose.position.x, 
+                  odom_ekf.pose.pose.position.y, 
+                  odom_ekf.pose.pose.position.z);
+
+      Eigen::Matrix4d trans_map_lidar_ekf = (translation_map_lidar_ekf * rotation_map_lidar_ekf).matrix();
+
+      // trans_base_output
+      Eigen::AngleAxisd rotation_base_output(0.0, Eigen::Vector3d::UnitZ());
+      Eigen::Translation3d translation_base_output(-0.825123, 0.000, -0.942);
+      Eigen::Matrix4d trans_base_output = (translation_base_output * rotation_base_output).matrix();
+      // write trans_utm_output to result file, use tum file format
+      trans_utm_output = trans_utm_map * trans_base_output.inverse() * trans_map_lidar_ekf * trans_lidar_output;
+      Eigen::Quaterniond quat_utm_output(trans_utm_output.block<3, 3>(0, 0));
+      result_file << std::setprecision(16)
+            << odom_ekf.header.stamp.sec+odom_ekf.header.stamp.nsec*1e-9
+            << " "
+            << trans_utm_output.block<3, 1>(0, 3)[0]
+            << " "
+            << trans_utm_output.block<3, 1>(0, 3)[1]
+            << " "
+            << 22
+            << " "
+            << quat_utm_output.x()
+            << " "
+            << quat_utm_output.y()
+            << " "
+            << quat_utm_output.z()
+            << " "
+            << quat_utm_output.w()
+            << std::endl;
+  }
   /**
    * @brief convert a Eigen::Matrix to TransformedStamped
    * @param stamp           timestamp
@@ -435,7 +451,7 @@ private:
   ros::Subscriber globalmap_sub;
   ros::Subscriber fix_sub;
   ros::Subscriber is_match_vaild_sub;
-
+  ros::Subscriber odom_ekf_sub;
   ros::Publisher localization_pub;
   ros::Publisher aligned_pub;
   ros::Publisher fix_map_localization_pub;
@@ -459,6 +475,7 @@ private:
   bool init_trans_map_lidar = false;
   bool init_trans_utm_map = false;
   bool is_match_vaild = true;
+  std::ofstream result_file;
 };
 
 }
