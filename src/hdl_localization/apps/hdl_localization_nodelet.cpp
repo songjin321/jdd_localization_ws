@@ -70,7 +70,7 @@ private:
     std::string ndt_neighbor_search_method = private_nh.param<std::string>("ndt_neighbor_search_method", "DIRECT7");
     double ndt_resolution = private_nh.param<double>("ndt_resolution", 1.0);
     pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr ndt(new pclomp::NormalDistributionsTransform<PointT, PointT>());
-    ndt->setTransformationEpsilon(0.01);
+    ndt->setTransformationEpsilon(0.001);
     ndt->setResolution(ndt_resolution);
     if(ndt_neighbor_search_method == "DIRECT1") {
       NODELET_INFO("search_method DIRECT1 is selected");
@@ -93,27 +93,13 @@ private:
     tf2_ros::Buffer tfBuffer;
     tf2_ros::TransformListener tfListener(tfBuffer);
     // trans_lidar_output and trans_lidar_gps from static tf
-    geometry_msgs::TransformStamped transformStamped;
-    Eigen::Affine3d transform_eigen;
-    try{
-      transformStamped = tfBuffer.lookupTransform("rslidar", "output_link", ros::Time(0), ros::Duration(1.0));
-    }
-    catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
-      ros::Duration(1.0).sleep();
-    }
-    transform_eigen = tf2::transformToEigen(transformStamped);
-    trans_lidar_output = transform_eigen.matrix();
+    Eigen::AngleAxisd rotation_lidar_output(0.0, Eigen::Vector3d::UnitZ());
+    Eigen::Translation3d translation_lidar_output(-0.825123, 0.000, -1.079);
+    trans_lidar_output = (translation_lidar_output * rotation_lidar_output).matrix();
 
-    try{
-      transformStamped = tfBuffer.lookupTransform("gps_link", "rslidar", ros::Time(0), ros::Duration(1.0));
-    }
-    catch (tf::TransformException ex){
-      ROS_ERROR("%s",ex.what());
-      ros::Duration(1.0).sleep();
-    }
-    transform_eigen = tf2::transformToEigen(transformStamped);
-    trans_gps_lidar = transform_eigen.matrix();
+    Eigen::AngleAxisd rotation_gps_lidar(0.0, Eigen::Vector3d::UnitZ());
+    Eigen::Translation3d translation_gps_lidar(0.878, 0.320, -0.066);
+    trans_gps_lidar = (translation_gps_lidar * rotation_gps_lidar).matrix();
 
     // trans_utm_map from parameters
     double map_x = private_nh.param<double>("map_x", 0.0);
@@ -133,31 +119,6 @@ private:
     {
       std::cout << "can not open result txt" << std::endl;
     }
-    while (nh.ok()){
-      if (!init_trans_map_lidar)  continue;  
-      try{
-        // use rslidar->map but not rslidar->odom for more precise result
-        transformStamped = tfBuffer.lookupTransform("odom", "rslidar", ros::Time(0), ros::Duration(1.0));
-      }
-      catch (tf::TransformException ex){
-        ROS_ERROR("%s",ex.what());
-        ros::Duration(1.0).sleep();
-      }
-      transform_eigen = tf2::transformToEigen(transformStamped);
-      trans_odom_lidar = transform_eigen.matrix();
-      trans_map_lidar = trans_map_odom * trans_odom_lidar; 
-
-      // publish output -> map 
-      publish_localization_pose(transformStamped.header.stamp, trans_map_lidar, "map", "rslidar");
-      // publish lidar->odom
-      // publish_localization_pose(transformStamped.header.stamp, trans_odom_lidar, "odom", "rslidar");
-
-      // plot to rviz
-
-      ros::spinOnce();
-      rate.sleep();
-    }
-    result_file.close();
   }
 
 private:
@@ -175,8 +136,8 @@ private:
       NODELET_ERROR("need GPS data to init trans_map_lidar!!");
       return;
     }   
-    if(lidar_count++%5!=0)
-      return;
+    // if(lidar_count++%2!=0)
+    //   return;
 
     const auto& stamp = points_msg->header.stamp;
     pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
