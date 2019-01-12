@@ -114,6 +114,11 @@ private:
     trans_gps_lidar = transform_eigen.matrix();
 
     // trans_utm_map from parameters
+    // trans_base_output
+    Eigen::AngleAxisd rotation_base_output(0.0, Eigen::Vector3d::UnitZ());
+    Eigen::Translation3d translation_base_output(-0.825123, 0.000, -0.942);
+    Eigen::Matrix4d trans_base_output = (translation_base_output * rotation_base_output).matrix();
+
     double map_x = private_nh.param<double>("map_x", 0.0);
     double map_y = private_nh.param<double>("map_y", 0.0);
     double map_z = private_nh.param<double>("map_z", 0.0);
@@ -126,8 +131,8 @@ private:
 
     ros::Rate rate(20.0);
     std::ofstream result_file;
-    std::string resultfile_path = private_nh.param<std::string>("resultfile_path", "/home/neousys/Documents/result.txt");
-    result_file.open(resultfile_path, std::fstream::out);
+    std::string resultfile_path = private_nh.param<std::string>("resultfile_path", "/home/neousys/Data/jdd/result.txt");
+    result_file.open(resultfile_path);
     if (!result_file)
     {
       std::cout << "can not open result txt" << std::endl;
@@ -145,14 +150,15 @@ private:
       transform_eigen = tf2::transformToEigen(transformStamped);
       trans_odom_lidar = transform_eigen.matrix();
       trans_map_lidar = trans_map_odom * trans_odom_lidar; 
-      trans_utm_output = trans_utm_map * trans_map_lidar * trans_lidar_output;
+      trans_utm_output = trans_utm_map * trans_base_output.inverse() * trans_map_lidar * trans_lidar_output;
       
       // publish output -> map 
       publish_localization_pose(transformStamped.header.stamp, trans_map_lidar * trans_lidar_output);
 
       // plot to rviz
 
-      // write trans_utm_output to result file
+      // write trans_utm_output to result file, use tum file format
+      Eigen::Quaterniond quat_utm_output(trans_utm_output.block<3, 3>(0, 0));
       result_file << std::setprecision(16)
             << transformStamped.header.stamp.sec+transformStamped.header.stamp.nsec*1e-9
             << " "
@@ -160,7 +166,15 @@ private:
             << " "
             << trans_utm_output.block<3, 1>(0, 3)[1]
             << " "
-            << trans_utm_output.block<3, 3>(0, 0).eulerAngles(0, 1, 2)[2]
+            << trans_utm_output.block<3, 1>(0, 3)[2]
+            << " "
+            << quat_utm_output.x()
+            << " "
+            << quat_utm_output.y()
+            << " "
+            << quat_utm_output.z()
+            << " "
+            << quat_utm_output.w()
             << std::endl;
 
       ros::spinOnce();

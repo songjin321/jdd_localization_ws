@@ -11,7 +11,7 @@ catkin build
 ```
 roslaunch hdl_localization hdl_localization.launch
 ## wait about 10 s
-roslaunch cartographer_ros my_robot_odom.launch bag_filename:=/home/neousys/Data/jdd/test2.bag
+roslaunch cartographer_ros my_robot_map_localization.launch bag_filename:=/home/neousys/Data/jdd/test2.bag
 ```
 
 ## Result

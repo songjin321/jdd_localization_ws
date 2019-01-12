@@ -8,7 +8,7 @@
   
     <!-- globalmap_server_nodelet -->
     <node pkg="nodelet" type="nodelet" name="globalmap_server_nodelet" args="load hdl_localization/GlobalmapServerNodelet $(arg nodelet_manager)">
-      <param name="globalmap_pcd" value="$(find hdl_localization)/data/test1_map.pcd" />
+      <param name="globalmap_pcd" value="$(find hdl_localization)/data/test1_map_best.pcd" />
     </node>
 
     <!-- hdl_localization_nodelet -->
@@ -19,11 +19,11 @@
         <param name="ndt_neighbor_search_method" value="DIRECT7" />
         <param name="ndt_resolution" value="2.0" />
         <!-- The origin of the loaded map  in the utm frame -->
-        <param name="map_x" value="457074.050779" />
-        <param name="map_y" value="4404763.58911" />
-        <param name="map_z" value="21.9565" />
-        <param name="map_theta" value="-146.7851804" />
+        <param name="map_x" value="457074.7411138645" />
+        <param name="map_y" value="4404764.041069881" />
+        <param name="map_z" value="22.0" />
+        <param name="map_theta" value="-146.7835234" />
         <!-- write output->utm to file-->
-        <param name="resultfile_path" value="/home/neousys/Documents/result.txt" />
+        <param name="resultfile_path" value="/home/neousys/Data/jdd/result.txt" />
     </node>
 </launch>
