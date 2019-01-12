@@ -154,11 +154,14 @@ private:
       trans_utm_output = trans_utm_map * trans_base_output.inverse() * trans_map_lidar * trans_lidar_output;
       
       // publish output -> map 
-      publish_localization_pose(transformStamped.header.stamp, trans_map_lidar * trans_lidar_output);
+      publish_localization_pose(transformStamped.header.stamp, trans_map_lidar, "map", "rslidar");
+      // publish lidar->odom
+      // publish_localization_pose(transformStamped.header.stamp, trans_odom_lidar, "odom", "rslidar");
 
       // plot to rviz
 
       // write trans_utm_output to result file, use tum file format
+    
       Eigen::Quaterniond quat_utm_output(trans_utm_output.block<3, 3>(0, 0));
       result_file << std::setprecision(16)
             << transformStamped.header.stamp.sec+transformStamped.header.stamp.nsec*1e-9
@@ -232,18 +235,12 @@ private:
       geometry_msgs::PoseWithCovarianceStamped lidar_pure_pose;
       lidar_pure_pose.header.stamp = stamp;
       lidar_pure_pose.header.frame_id = "map";
-      lidar_pure_pose.pose.pose = matrix2Pose(trans_map_lidar);
-      lidar_pure_pose.pose.covariance[0] = 0.002;
-      lidar_pure_pose.pose.covariance[7] = 0.002;
-      lidar_pure_pose.pose.covariance[14] = 0.002;
-      lidar_pure_pose.pose.covariance[21] = 0.2/180*M_PI;
-      lidar_pure_pose.pose.covariance[28] = 0.2/180*M_PI;
-      lidar_pure_pose.pose.covariance[35] = 0.2/180*M_PI;
+      lidar_pure_pose.pose = matrix2PoseWithCovariance(trans_map_lidar);
       pure_lidar_localization_pub.publish(lidar_pure_pose);
 
       trans_map_odom = trans_map_lidar * trans_odom_lidar.inverse();
-      std::cout << "trans_map_odom translation = \n" << trans_map_odom.block<3, 1>(0, 3) << std::endl;
-      std::cout << " trans_map_odom euler = \n" << trans_map_odom.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
+      std::cout << "trans_map_lidar translation = \n" << trans_map_lidar.block<3, 1>(0, 3) << std::endl;
+      std::cout << " trans_map_lidar euler = \n" << trans_map_lidar.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
     }
     publish_fix_map_localization(stamp, trans_map_lidar);
     if(aligned_pub.getNumSubscribers()) {
@@ -304,24 +301,31 @@ private:
    * @param stamp  timestamp
    * @param pose   lidar localization pose to be published
    */
-  void publish_localization_pose(const ros::Time& stamp, const Eigen::Matrix4d& pose) {
+  void publish_localization_pose(const ros::Time& stamp, const Eigen::Matrix4d& pose, const std::string& frame_id, const std::string& child_frame_id) {
     // broadcast the transform over tf
-    geometry_msgs::TransformStamped odom_trans = matrix2transform(stamp, pose, "map", "output");
+    geometry_msgs::TransformStamped odom_trans = matrix2transform(stamp, pose, frame_id, child_frame_id);
 
     // publish the transform
     nav_msgs::Odometry odom;
     odom.header.stamp = stamp;
-    odom.header.frame_id = "map";
+    odom.header.frame_id = frame_id;
 
     odom.pose.pose.position.x = pose(0, 3);
     odom.pose.pose.position.y = pose(1, 3);
     odom.pose.pose.position.z = pose(2, 3);
     odom.pose.pose.orientation = odom_trans.transform.rotation;
 
-    odom.child_frame_id = "output";
+    odom.child_frame_id = child_frame_id;
     odom.twist.twist.linear.x = 0.0;
     odom.twist.twist.linear.y = 0.0;
     odom.twist.twist.angular.z = 0.0;
+
+    odom.pose.covariance[0] = 0.02;
+    odom.pose.covariance[7] = 0.02;
+    odom.pose.covariance[14] = 0.02;
+    odom.pose.covariance[21] = 2/180*M_PI;
+    odom.pose.covariance[28] = 2/180*M_PI;
+    odom.pose.covariance[35] = 2/180*M_PI;
 
     localization_pub.publish(odom);
   }
@@ -399,19 +403,25 @@ private:
     return odom_trans;
   }
 
-  geometry_msgs::Pose matrix2Pose(const Eigen::Matrix4d& pose) {
+  geometry_msgs::PoseWithCovariance matrix2PoseWithCovariance(const Eigen::Matrix4d pose) {
     Eigen::Quaterniond quat(pose.block<3, 3>(0, 0));
     quat.normalize();
-    geometry_msgs::Pose pose_pub;
-    pose_pub.orientation.w = quat.w();
-    pose_pub.orientation.x = quat.x();
-    pose_pub.orientation.y = quat.y();
-    pose_pub.orientation.z = quat.z();
+    geometry_msgs::PoseWithCovariance pose_pub;
+    pose_pub.pose.orientation.w = quat.w();
+    pose_pub.pose.orientation.x = quat.x();
+    pose_pub.pose.orientation.y = quat.y();
+    pose_pub.pose.orientation.z = quat.z();
 
-    pose_pub.position.x = pose.block<3, 1>(0, 3)[0];
-    pose_pub.position.x = pose.block<3, 1>(0, 3)[1];
-    pose_pub.position.x = pose.block<3, 1>(0, 3)[2];
+    pose_pub.pose.position.x = pose.block<3, 1>(0, 3)[0];
+    pose_pub.pose.position.y = pose.block<3, 1>(0, 3)[1];
+    pose_pub.pose.position.z = pose.block<3, 1>(0, 3)[2];
 
+    pose_pub.covariance[0] = 0.0004;
+    pose_pub.covariance[7] = 0.0004;
+    pose_pub.covariance[14] = 0.0004;
+    pose_pub.covariance[21] = 1/180*M_PI/180*M_PI;
+    pose_pub.covariance[28] = 1/180*M_PI/180*M_PI;
+    pose_pub.covariance[35] = 1/180*M_PI/180*M_PI;
     return pose_pub;
   }
 
