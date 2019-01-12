@@ -10,6 +10,8 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/PointIndices.h>
 
 #include "robust_pcl_registration/point_cloud_registration.h"
 
@@ -18,11 +20,31 @@ Ipda::Ipda(const IpdaParameters& params)
 
 Eigen::Affine3d Ipda::evaluate(
     pcl::PointCloud<PointType>::Ptr source_cloud,
-    pcl::PointCloud<PointType>::Ptr target_cloud,
+    pcl::PointCloud<PointType>::Ptr target_cloud_origin,
     pcl::PointCloud<PointType>::Ptr aligned_source,
     Eigen::Matrix4d init_transform) {
   CHECK(source_cloud);
-  CHECK(target_cloud);
+  CHECK(target_cloud_origin);
+
+  // preprocess target_cloud
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+  pcl::ExtractIndices<pcl::PointXYZ> extract;
+  double center_x = init_transform.block<3, 1>(0, 3)[0];
+  double center_y = init_transform.block<3, 1>(0, 3)[1];
+  for (int i = 0; i < (*target_cloud_origin).size(); i++)
+  {
+    pcl::PointXYZ pt(target_cloud_origin->points[i].x, target_cloud_origin->points[i].y, target_cloud_origin->points[i].z);
+    float THRESHOLD = 20.0f;
+    if (sqrt((pt.x- center_x) * (pt.x- center_x) + (pt.y- center_y) * (pt.y- center_y)) > THRESHOLD) // e.g. remove all pts below zAvg
+    {
+      inliers->indices.push_back(i);
+    }
+  }
+  extract.setInputCloud(target_cloud_origin);
+  extract.setIndices(inliers);
+  extract.setNegative(true);
+  pcl::PointCloud<PointType>::Ptr target_cloud = boost::make_shared<pcl::PointCloud<PointType> >();
+  extract.filter(*target_cloud);
 
   Eigen::Affine3d final_transformation, previous_transformation, I_3;
   final_transformation.matrix() = init_transform;
@@ -36,7 +58,7 @@ Eigen::Affine3d Ipda::evaluate(
 
   pcl::transformPointCloud(*aligned_source, *aligned_source, final_transformation);
   LOG(INFO) << "Init Final Transformation: " << std::endl << final_transformation.matrix();
-  
+
   point_cloud_registration::PointCloudRegistrationParams params;
   params.dof = params_.dof;
   params.max_neighbours = params_.max_neighbours;
@@ -87,7 +109,7 @@ Eigen::Affine3d Ipda::evaluate(
     LOG(INFO) << "Transformation epsilon: " << transformation_epsilon;
     if (transformation_epsilon < params_.transformation_epsilon) {
       LOG(INFO) << "IPDA converged." << std::endl;
-      return current_transformation;
+      return final_transformation;
     }
     previous_transformation = current_transformation;
   }
