@@ -55,6 +55,7 @@ public:
     is_match_vaild_sub = nh.subscribe("/initialpose", 1, &HdlLocalizationNodelet::is_match_vaild_callback, this);
 
     localization_pub = nh.advertise<nav_msgs::Odometry>("/lidar_localization", 5, false);
+    pure_lidar_localization_pub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("/pure_lidar_localization", 5, false);
     aligned_pub = nh.advertise<sensor_msgs::PointCloud2>("/aligned_points", 5, false);
     fix_map_localization_pub = nh.advertise<sensor_msgs::NavSatFix>("/fix_map_localization", 5, false);
 
@@ -141,7 +142,7 @@ private:
       if (!init_trans_map_lidar)  continue;  
       try{
         // use rslidar->map but not rslidar->odom for more precise result
-        transformStamped = tfBuffer.lookupTransform("map", "rslidar", ros::Time(0), ros::Duration(1.0));
+        transformStamped = tfBuffer.lookupTransform("odom", "rslidar", ros::Time(0), ros::Duration(1.0));
       }
       catch (tf::TransformException ex){
         ROS_ERROR("%s",ex.what());
@@ -227,6 +228,19 @@ private:
     if (is_match_vaild)
     {
       trans_map_lidar = registration->getFinalTransformation().cast<double>();
+      // publish trans_map_lidar
+      geometry_msgs::PoseWithCovarianceStamped lidar_pure_pose;
+      lidar_pure_pose.header.stamp = stamp;
+      lidar_pure_pose.header.frame_id = "map";
+      lidar_pure_pose.pose.pose = matrix2Pose(trans_map_lidar);
+      lidar_pure_pose.pose.covariance[0] = 0.002;
+      lidar_pure_pose.pose.covariance[7] = 0.002;
+      lidar_pure_pose.pose.covariance[14] = 0.002;
+      lidar_pure_pose.pose.covariance[21] = 0.2/180*M_PI;
+      lidar_pure_pose.pose.covariance[28] = 0.2/180*M_PI;
+      lidar_pure_pose.pose.covariance[35] = 0.2/180*M_PI;
+      pure_lidar_localization_pub.publish(lidar_pure_pose);
+
       trans_map_odom = trans_map_lidar * trans_odom_lidar.inverse();
       std::cout << "trans_map_odom translation = \n" << trans_map_odom.block<3, 1>(0, 3) << std::endl;
       std::cout << " trans_map_odom euler = \n" << trans_map_odom.block<3, 3>(0, 0).eulerAngles(0, 1, 2) << std::endl;
@@ -385,6 +399,22 @@ private:
     return odom_trans;
   }
 
+  geometry_msgs::Pose matrix2Pose(const Eigen::Matrix4d& pose) {
+    Eigen::Quaterniond quat(pose.block<3, 3>(0, 0));
+    quat.normalize();
+    geometry_msgs::Pose pose_pub;
+    pose_pub.orientation.w = quat.w();
+    pose_pub.orientation.x = quat.x();
+    pose_pub.orientation.y = quat.y();
+    pose_pub.orientation.z = quat.z();
+
+    pose_pub.position.x = pose.block<3, 1>(0, 3)[0];
+    pose_pub.position.x = pose.block<3, 1>(0, 3)[1];
+    pose_pub.position.x = pose.block<3, 1>(0, 3)[2];
+
+    return pose_pub;
+  }
+
 private:
   // ROS
   ros::NodeHandle nh;
@@ -399,6 +429,7 @@ private:
   ros::Publisher localization_pub;
   ros::Publisher aligned_pub;
   ros::Publisher fix_map_localization_pub;
+  ros::Publisher pure_lidar_localization_pub;
   // globalmap and registration method
   pcl::PointCloud<PointT>::Ptr globalmap;
   pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr registration;
