@@ -30,6 +30,11 @@
 #include <fstream>
 #include <pcl/io/pcd_io.h>
 #include "UTM.h"
+#include <pcl/point_types.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/PointIndices.h>
 namespace hdl_localization {
 
 class HdlLocalizationNodelet : public nodelet::Nodelet {
@@ -154,6 +159,24 @@ private:
     // relocalization
     auto t1 = ros::WallTime::now();
     pcl::PointCloud<PointT>::Ptr aligned(new pcl::PointCloud<PointT>());
+
+    // Create the filtering object
+    pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    for (int i = 0; i < (*cloud).size(); i++)
+    {
+      pcl::PointXYZ pt(cloud->points[i].x, cloud->points[i].y, cloud->points[i].z);
+      float THRESHOLD = 5.0f;
+      if (sqrt(pt.x * pt.x + pt.y * pt.y) < THRESHOLD) // e.g. remove all pts below zAvg
+      {
+        inliers->indices.push_back(i);
+      }
+    }
+    extract.setInputCloud(cloud);
+    extract.setIndices(inliers);
+    extract.setNegative(true);
+    extract.filter(*cloud);
+
     registration->setInputSource(cloud);
     registration->align(*aligned, trans_map_lidar.cast<float>());
     std::cout << "map_lidar Normal Distributions Transform has converged:" << registration->hasConverged()
