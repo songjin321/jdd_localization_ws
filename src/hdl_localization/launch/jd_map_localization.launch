@@ -17,7 +17,7 @@
         <!-- ndt settings -->
         <!-- if NDT is slow for your PC, try DIRECT1 serach method, which is a bit unstable but extremely fast -->
         <param name="ndt_neighbor_search_method" value="DIRECT7" />
-        <param name="ndt_resolution" value="2.0" />
+        <param name="ndt_resolution" value="0.5" />
         <!-- The origin of the loaded map  in the utm frame -->
         <param name="map_x" value="457246.0" />
         <param name="map_y" value="4404758.0" />

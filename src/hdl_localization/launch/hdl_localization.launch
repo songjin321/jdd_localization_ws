@@ -9,7 +9,7 @@
   
     <!-- globalmap_server_nodelet -->
     <node pkg="nodelet" type="nodelet" name="globalmap_server_nodelet" args="load hdl_localization/GlobalmapServerNodelet $(arg nodelet_manager)">
-      <param name="globalmap_pcd" value="$(find hdl_localization)/data/test1_map_best.pcd" />
+      <param name="globalmap_pcd" value="$(find hdl_localization)/data/test1_map_best_43M.pcd" />
     </node>
 
     <!-- hdl_localization_nodelet -->
@@ -18,7 +18,8 @@
         <!-- ndt settings -->
         <!-- if NDT is slow for your PC, try DIRECT1 serach method, which is a bit unstable but extremely fast -->
         <param name="ndt_neighbor_search_method" value="DIRECT7" />
-        <param name="ndt_resolution" value="2.0" />
+        <param name="ndt_resolution" value="0.6" />
+        <param name="ndt_stepsize" value="0.1" />
         <!-- The origin of the loaded map  in the utm frame -->
         <param name="map_x" value="457074.7411138645" />
         <param name="map_y" value="4404764.041069881" />

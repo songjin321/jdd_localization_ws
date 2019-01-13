@@ -55,7 +55,7 @@ public:
     processing_time.resize(16);
 
     points_sub = mt_nh.subscribe("/velodyne_points", 5, &HdlLocalizationNodelet::points_callback, this);
-    globalmap_sub = nh.subscribe("/globalmap", 1, &HdlLocalizationNodelet::globalmap_callback, this);
+    // globalmap_sub = nh.subscribe("/globalmap", 1, &HdlLocalizationNodelet::globalmap_callback, this);
     fix_sub = nh.subscribe("/fix", 1, &HdlLocalizationNodelet::fix_callback, this);
     is_match_vaild_sub = nh.subscribe("/initialpose", 1, &HdlLocalizationNodelet::is_match_vaild_callback, this);
     odom_ekf_sub = nh.subscribe("/odometry/filtered", 1, &HdlLocalizationNodelet::odom_ekf_callback, this);
@@ -74,8 +74,11 @@ private:
     // intialize scan matching method
     std::string ndt_neighbor_search_method = private_nh.param<std::string>("ndt_neighbor_search_method", "DIRECT7");
     double ndt_resolution = private_nh.param<double>("ndt_resolution", 1.0);
+    double ndt_stepsize = private_nh.param<double>("ndt_stepsize", 0.1);
     pclomp::NormalDistributionsTransform<PointT, PointT>::Ptr ndt(new pclomp::NormalDistributionsTransform<PointT, PointT>());
     ndt->setTransformationEpsilon(0.001);
+    // Setting maximum step size for More-Thuente line search.
+    ndt->setStepSize(ndt_stepsize);
     ndt->setResolution(ndt_resolution);
     if(ndt_neighbor_search_method == "DIRECT1") {
       NODELET_INFO("search_method DIRECT1 is selected");
@@ -117,6 +120,14 @@ private:
     NODELET_INFO("trans_utm_map init OK!!!");
     init_trans_utm_map = true;
 
+    // load global map 
+
+    std::string globalmap_pcd = "/home/neousys/Project/jdd_localization_ws/src/hdl_localization/data/test1_map_best.pcd";
+    globalmap.reset(new pcl::PointCloud<PointT>());
+    pcl::io::loadPCDFile(globalmap_pcd, *globalmap);
+    registration->setInputTarget(globalmap);
+    NODELET_INFO("globalmap received!");
+    
     ros::Rate rate(20.0);
     std::string resultfile_path = private_nh.param<std::string>("resultfile_path", "/home/neousys/Data/jdd/result.txt");
     result_file.open(resultfile_path);
@@ -142,7 +153,7 @@ private:
       return;
     }   
     // if(lidar_count++%2!=0)
-    //   return;
+    //    return;
 
     const auto& stamp = points_msg->header.stamp;
     pcl::PointCloud<PointT>::Ptr cloud(new pcl::PointCloud<PointT>());
